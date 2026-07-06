@@ -1,0 +1,8 @@
+{
+  "name": "gift-flyer-factory",
+  "private": true,
+  "dependencies": {
+    "pngjs": "^7.0.0",
+    "pptxgenjs": "^4.0.1"
+  }
+}
