@@ -144,13 +144,13 @@ const boxY = border - fT * boxH;
 | `Yu Mincho Demibold` | プレミアム・和モダンの品のある本文/縦書き |
 | `BIZ UDGothic` / `BIZ UDPMincho Medium` | 情報部分の可読性担保 |
 
-### 未インストール（過去案件で使った Google Fonts。使うなら先にインストール）
+### Google Fonts（2026-07-06 `scripts/install-fonts.ps1` でこのマシンにインストール済み）
 
-Shippori Mincho / Klee One (SemiBold) / Yomogi / Great Vibes / Dela Gothic One / Zen Maru Gothic / Zen Kaku Gothic New
+Shippori Mincho / Klee One SemiBold / Yomogi / Great Vibes / Dela Gothic One / Zen Maru Gothic / Zen Kaku Gothic New
 
-- いずれも OFL（無料）。https://fonts.google.com からDL → ttfを右クリック「すべてのユーザーに対してインストール」
+- いずれも OFL（無料）。`powershell -File scripts/install-fonts.ps1` で管理者権限不要・per-userインストールできる（一部だけなら `-Names "Klee One SemiBold","Yomogi"`）
 - 用途の実績：Klee One=万年筆風楷書（手書き商品名）、Yomogi=ラフな添え文字、Great Vibes=欧文筆記体サイン、Dela Gothic One=極太ポップ見出し、Shippori Mincho=上品な明朝
-- **使う前に必ずインストール状況を確認する**（未インストールのフォント名を指定すると黙って游ゴシック等に置換され、目視QAで初めて気づく）
+- **別のマシン・環境で作業する場合は使う前に必ずインストール状況を確認する**（未インストールのフォント名を指定すると黙って游ゴシック等に置換され、目視QAで初めて気づく）
 
 ### 納品時の注意（必ず案内に添える）
 pptxgenjs はフォントを埋め込まない。HG系はOffice入りPCなら表示されるが、Google Fonts・無い環境では置換される。配布前に PowerPoint「ファイル→オプション→保存→ファイルにフォントを埋め込む」を有効にして保存し直すか、フォントのインストールを案内する。
