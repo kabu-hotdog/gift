@@ -3,7 +3,7 @@
 // 3フレーバーは提灯、スペックは屋台の木札看板に言い換える。
 const PptxGenJS = require('pptxgenjs');
 const path = require('path');
-const { loadDims, makeHelpers } = require('../_lib/pptx-helpers');
+const { loadDims, makeHelpers, safeWriteFile } = require('../_lib/pptx-helpers');
 
 const DIR = path.join(__dirname, '..', '..', 'products', '北海道冷やしぜんざい');
 const dims = loadDims(DIR);
@@ -126,4 +126,4 @@ slide.addText('なないろキッチン', {
   fontFace: 'HGGyoshotai', fontSize: 15, color: GOLD, align: 'center', valign: 'middle',
 });
 
-pptx.writeFile({ fileName: path.join(__dirname, 'zenzai-v4.pptx') }).then(() => console.log('written v4'));
+safeWriteFile(pptx, path.join(__dirname, 'zenzai-v4.pptx')).then(() => console.log('written v4'));

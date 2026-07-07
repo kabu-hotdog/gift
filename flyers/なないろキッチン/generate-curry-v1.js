@@ -2,7 +2,7 @@
 // テーマ：2種のスープカレーの素を「調合レポート」に見立てる。瓶は検体、写真の具材にはピン留めの解説線。
 const PptxGenJS = require('pptxgenjs');
 const path = require('path');
-const { loadDims, makeHelpers } = require('../_lib/pptx-helpers');
+const { loadDims, makeHelpers, safeWriteFile } = require('../_lib/pptx-helpers');
 
 const DIR = path.join(__dirname, '..', '..', 'products', 'なないろキッチン');
 const dims = loadDims(DIR);
@@ -118,4 +118,4 @@ slide.addText('なないろキッチン', {
   fontFace: 'BIZ UDGothic', fontSize: 12, color: MUSTARD, align: 'center', charSpacing: 2,
 });
 
-pptx.writeFile({ fileName: path.join(__dirname, 'curry-v1.pptx') }).then(() => console.log('written curry v1'));
+safeWriteFile(pptx, path.join(__dirname, 'curry-v1.pptx')).then(() => console.log('written curry v1'));

@@ -3,7 +3,7 @@
 // 症状→処方→用法・用量、3フレーバーを薬剤名のように並べる。写真はテープ留めした添付写真の体裁。
 const PptxGenJS = require('pptxgenjs');
 const path = require('path');
-const { loadDims, makeHelpers } = require('../_lib/pptx-helpers');
+const { loadDims, makeHelpers, safeWriteFile } = require('../_lib/pptx-helpers');
 
 const DIR = path.join(__dirname, '..', '..', 'products', '北海道冷やしぜんざい');
 const dims = loadDims(DIR);
@@ -140,4 +140,4 @@ slide.addText('この処方箋は、あなたの夏を守るために。 — な
   fontFace: 'Yu Mincho Demibold', fontSize: 10, italic: true, color: SUBINK, align: 'center',
 });
 
-pptx.writeFile({ fileName: path.join(__dirname, 'zenzai-v3.pptx') }).then(() => console.log('written v3'));
+safeWriteFile(pptx, path.join(__dirname, 'zenzai-v3.pptx')).then(() => console.log('written v3'));

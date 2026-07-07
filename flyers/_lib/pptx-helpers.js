@@ -3,6 +3,7 @@ const { imageSize } = require('image-size');
 const { PNG } = require('pngjs');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 // 商品フォルダ内の画像サイズを名前解決できる形でロード
 function loadDims(dir) {
@@ -83,4 +84,29 @@ function makeHelpers(slide, dims, dir) {
   return { addCover, placeContain, vText, img };
 }
 
-module.exports = { loadDims, alphaBBox, makeHelpers };
+// 手動編集保護のコード強制版（flyer-knowhow.md §7）。
+// 承認済みハッシュ（.approved-hashes.json）と現物のSHA256が食い違う＝手動編集ありの場合、
+// Claudeの判断に関係なく書き込みを拒否する（scripts/check-flyer-hash.ps1 のロジックをJS側に複製）。
+function safeWriteFile(pptx, fileName) {
+  const dir = path.dirname(fileName);
+  const name = path.basename(fileName);
+  const ledgerPath = path.join(dir, '.approved-hashes.json');
+
+  if (fs.existsSync(fileName) && fs.existsSync(ledgerPath)) {
+    const ledger = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+    const entry = ledger[name];
+    if (entry) {
+      const currentHash = crypto.createHash('sha256').update(fs.readFileSync(fileName)).digest('hex').toUpperCase();
+      if (currentHash !== entry.sha256.toUpperCase()) {
+        throw new Error(
+          `BLOCKED: "${name}" was manually edited after approval (${entry.approvedAt}). ` +
+          `Do not bypass this check. Confirm with the user before overwriting, or restore from the approved git snapshot.`
+        );
+      }
+    }
+  }
+
+  return pptx.writeFile({ fileName });
+}
+
+module.exports = { loadDims, alphaBBox, makeHelpers, safeWriteFile };

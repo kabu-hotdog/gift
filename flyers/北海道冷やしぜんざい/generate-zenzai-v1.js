@@ -205,6 +205,6 @@ slide.addText('なないろキッチン', {
   fontFace: 'BIZ UDGothic', fontSize: 11, bold: true, color: SUBINK, align: 'right',
 });
 
-pptx.writeFile({ fileName: path.join(__dirname, 'zenzai-v1.pptx') }).then(() => {
+safeWriteFile(pptx, path.join(__dirname, 'zenzai-v1.pptx')).then(() => {
   console.log('written');
 });

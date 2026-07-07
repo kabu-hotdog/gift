@@ -6,6 +6,7 @@ const PptxGenJS = require('pptxgenjs');
 const { imageSize } = require('image-size');
 const fs = require('fs');
 const path = require('path');
+const { safeWriteFile } = require('../_lib/pptx-helpers');
 
 const DIR = path.join(__dirname, '..', '..', 'products', '北海道冷やしぜんざい');
 const dims = {};
@@ -187,4 +188,4 @@ specs.forEach(([label, value]) => {
   sx += labelW + valueW + 0.1;
 });
 
-pptx.writeFile({ fileName: path.join(__dirname, 'zenzai-v2.pptx') }).then(() => console.log('written'));
+safeWriteFile(pptx, path.join(__dirname, 'zenzai-v2.pptx')).then(() => console.log('written'));

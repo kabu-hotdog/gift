@@ -2,7 +2,7 @@
 // テーマ：木の食堂の品書き。写真を暖簾越しの一枚として大きく見せ、2種を短冊メニューで紹介する。
 const PptxGenJS = require('pptxgenjs');
 const path = require('path');
-const { loadDims, makeHelpers } = require('../_lib/pptx-helpers');
+const { loadDims, makeHelpers, safeWriteFile } = require('../_lib/pptx-helpers');
 
 const DIR = path.join(__dirname, '..', '..', 'products', 'なないろキッチン');
 const dims = loadDims(DIR);
@@ -105,4 +105,4 @@ slide.addText('なないろキッチン', {
   fontFace: 'HGGyoshotai', fontSize: 17, color: GOLD, align: 'center',
 });
 
-pptx.writeFile({ fileName: path.join(__dirname, 'curry-v2.pptx') }).then(() => console.log('written curry v2'));
+safeWriteFile(pptx, path.join(__dirname, 'curry-v2.pptx')).then(() => console.log('written curry v2'));
