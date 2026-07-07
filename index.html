@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎁 gift フライヤー工房 — 制作物一覧</title>
+  <style>
+    :root {
+      --red:    #B7402F;
+      --red-lt: #D9542B;
+      --gold:   #C9A227;
+      --cream:  #FBF5EA;
+      --paper:  #FFFFFF;
+      --ink:    #2B2320;
+      --ink-lt: #6B5D50;
+      --border: #D8D0C0;
+      --tag-green: #2D6A4F;
+      --tag-gray:  #8A7A6A;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--cream);
+      color: var(--ink);
+      font-family: 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ===== HEADER ===== */
+    header {
+      background: var(--ink);
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .header-stripe {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px 32px 16px;
+      border-bottom: 4px solid var(--gold);
+    }
+    .header-icon {
+      font-size: 44px;
+      line-height: 1;
+      filter: drop-shadow(2px 2px 0 rgba(0,0,0,.3));
+    }
+    .header-text h1 {
+      font-size: clamp(20px, 4vw, 28px);
+      font-weight: 900;
+      letter-spacing: .04em;
+    }
+    .header-text .sub {
+      font-size: 12px;
+      opacity: .8;
+      margin-top: 3px;
+      letter-spacing: .08em;
+    }
+
+    /* ===== MAIN ===== */
+    main {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 20px 60px;
+    }
+
+    .product-block {
+      margin-bottom: 44px;
+    }
+    .product-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 16px;
+    }
+    .product-label h2 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      color: var(--ink);
+    }
+    .product-label .count {
+      font-size: 11px;
+      color: var(--ink-lt);
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 2px 10px;
+    }
+    .product-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ===== CARDS ===== */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--paper);
+      border: 2px dashed var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color .15s, box-shadow .15s, transform .1s;
+      position: relative;
+    }
+    .card:hover {
+      border-color: var(--red);
+      box-shadow: 0 4px 16px rgba(183,64,47,.15);
+      transform: translateY(-2px);
+    }
+    .card-icon { font-size: 26px; line-height: 1; }
+    .card-name {
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--ink);
+    }
+    .card-desc {
+      font-size: 12px;
+      color: var(--ink-lt);
+      line-height: 1.6;
+    }
+    .card-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      padding: 2px 8px;
+      border-radius: 3px;
+      margin-top: 4px;
+      align-self: flex-start;
+    }
+    .tag-done  { background: #E8F5E9; color: var(--tag-green); }
+    .tag-wip   { background: #FFF3E0; color: #BF6B00; }
+    .tag-plan  { background: #F3F4F6; color: var(--tag-gray); }
+
+    .card.placeholder {
+      border-style: dotted;
+      opacity: .55;
+      pointer-events: none;
+    }
+
+    /* ===== EMPTY STATE ===== */
+    .empty-note {
+      background: var(--paper);
+      border: 1px dashed var(--border);
+      border-radius: 6px;
+      padding: 16px 18px;
+      font-size: 13px;
+      color: var(--ink-lt);
+      line-height: 1.7;
+    }
+
+    /* ===== INFO BOX ===== */
+    .info-box {
+      background: var(--paper);
+      border-left: 4px solid var(--gold);
+      border-radius: 0 6px 6px 0;
+      padding: 14px 18px;
+      font-size: 13px;
+      line-height: 1.8;
+      margin-top: 8px;
+      color: var(--ink-lt);
+    }
+    .info-box strong { color: var(--ink); }
+
+    /* ===== LIGHTBOX ===== */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.88);
+      z-index: 1000;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 16px;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox-bar {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    #lightbox-back {
+      background: var(--red);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 18px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: .05em;
+    }
+    #lightbox-back:hover { background: var(--red-lt); }
+    #lightbox-title {
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      opacity: .85;
+    }
+    #lightbox img {
+      max-width: 100%;
+      max-height: calc(100vh - 80px);
+      object-fit: contain;
+      border-radius: 4px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.6);
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--ink-lt);
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      opacity: .6;
+    }
+
+    @media (max-width: 480px) {
+      .header-stripe { padding: 16px; }
+      main { padding: 20px 14px 40px; }
+      .card-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-stripe">
+    <div class="header-icon">🎁</div>
+    <div class="header-text">
+      <h1>gift フライヤー工房</h1>
+      <div class="sub">若者にギフトを広めるAIフライヤー — 制作物ダッシュボード</div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- =================== 北海道冷やしぜんざい =================== -->
+  <div class="product-block">
+    <div class="product-label"><h2>🍨 北海道冷やしぜんざい</h2><span class="count">確定 0</span></div>
+    <div class="card-grid" id="flyers-zenzai">
+      <!-- GENERATED_ZENZAI_START -->
+      <div class="card placeholder">
+        <div class="card-icon">🕐</div>
+        <div class="card-name">確定案はまだありません</div>
+        <div class="card-desc">試作中（処方箋・夜店テーマなど）。承認され次第ここに追加されます。</div>
+        <span class="card-tag tag-plan">未承認</span>
+      </div>
+      <!-- GENERATED_ZENZAI_END -->
+    </div>
+  </div>
+
+  <!-- =================== なないろキッチン スープカレー =================== -->
+  <div class="product-block">
+    <div class="product-label"><h2>🍛 スープカレーキッチン</h2><span class="count">確定 0</span></div>
+    <div class="card-grid" id="flyers-curry">
+      <!-- GENERATED_CURRY_START -->
+      <div class="card placeholder">
+        <div class="card-icon">🕐</div>
+        <div class="card-name">確定案はまだありません</div>
+        <div class="card-desc">試作中（調合ラボ・食堂の品書きテーマなど）。承認され次第ここに追加されます。</div>
+        <span class="card-tag tag-plan">未承認</span>
+      </div>
+      <!-- GENERATED_CURRY_END -->
+    </div>
+  </div>
+
+  <!-- =================== 運用メモ =================== -->
+  <div class="info-box">
+    <strong>掲示ルール</strong> — このページに並ぶのは <strong>ユーザーが明示的に承認した確定案のみ</strong>。<br>
+    試作段階のデザインはチャット上のプレビュー画像で確認・フィードバックし、OKが出たものだけ
+    <code>scripts/approve-flyer.ps1</code> でハッシュ記録 → git commit → JPG化 →このページにカード追加、という順で掲示される。<br>
+    承認前にこのページのカードが増えることはない（<a href="CLAUDE.md">CLAUDE.md</a> 参照）。
+  </div>
+
+</main>
+
+<footer>
+  このページは Claude Code で自動生成 · カード追加は承認時のみ（.claude/skills/flyer/flyer-prompt.md §保存・出力・承認）
+</footer>
+
+<!-- ===== LIGHTBOX ===== -->
+<div id="lightbox" role="dialog" aria-modal="true">
+  <div id="lightbox-bar">
+    <button id="lightbox-back" onclick="closeLightbox()">← 戻る</button>
+    <span id="lightbox-title"></span>
+  </div>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+  function openLightbox(src, title) {
+    const lb = document.getElementById('lightbox');
+    document.getElementById('lightbox-img').src = src;
+    document.getElementById('lightbox-title').textContent = title;
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLightbox() {
+    document.getElementById('lightbox').classList.remove('open');
+    document.getElementById('lightbox-img').src = '';
+    document.body.style.overflow = '';
+  }
+  document.getElementById('lightbox').addEventListener('click', function(e) {
+    if (e.target === this) closeLightbox();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeLightbox();
+  });
+</script>
+
+</body>
+</html>

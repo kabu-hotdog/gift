@@ -2,6 +2,7 @@
   "name": "gift-flyer-factory",
   "private": true,
   "dependencies": {
+    "image-size": "^2.0.2",
     "pngjs": "^7.0.0",
     "pptxgenjs": "^4.0.1"
   }
