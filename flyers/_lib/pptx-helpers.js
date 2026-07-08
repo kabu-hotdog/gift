@@ -39,14 +39,18 @@ function makeHelpers(slide, dims, dir) {
   const img = (name) => path.join(dir, name);
 
   // 実績のあるv1/v2方式：左上アンカーでオーバーサイズ配置＋sizing.cover任せ（中央寄せオフセットを足すとcover計算とズレる）
-  function addCover(name, box) {
+  // 円形クロップが欲しい時は box を正方形にして opts.rounding=true を渡す（pptxgenjsネイティブ機能）
+  function addCover(name, box, opts = {}) {
     const d = dims[name];
     const boxAspect = box.w / box.h;
     const imgAspect = d.width / d.height;
     let w, h;
     if (imgAspect > boxAspect) { h = box.h; w = box.h * imgAspect; }
     else { w = box.w; h = box.w / imgAspect; }
-    slide.addImage({ path: img(name), x: box.x, y: box.y, w, h, sizing: { type: 'cover', w: box.w, h: box.h } });
+    const imgOpts = { path: img(name), x: box.x, y: box.y, w, h, sizing: { type: 'cover', w: box.w, h: box.h } };
+    if (opts.rounding) imgOpts.rounding = true;
+    if (opts.rotate) imgOpts.rotate = opts.rotate;
+    slide.addImage(imgOpts);
   }
 
   function placeContain(name, box, opts = {}) {
