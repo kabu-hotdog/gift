@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["--yes", "serve", ".", "-l", "5173"],
       "port": 5173
+    },
+    {
+      "name": "survey-app",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["survey-app/server.js"],
+      "port": 3000
     }
   ]
 }

@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: poster-survey
+    runtime: node
+    plan: free
+    rootDir: survey-app
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: ADMIN_KEY
+        sync: false
