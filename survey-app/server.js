@@ -124,6 +124,7 @@ const BASE_STYLE = `
   fieldset.muted { opacity: 0.75; }
   fieldset.muted legend { font-weight: normal; font-size: 0.9rem; }
   label.choice { display: inline-block; margin-right: 20px; font-size: 1.1rem; }
+  p.sub { font-size: 0.85rem; color: #666; margin: 10px 0 4px; }
   label.check { display: block; margin: 6px 0; }
   textarea, input[type=text] { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 1rem; }
   button { width: 100%; padding: 14px; font-size: 1.1rem; font-weight: bold; border: none; border-radius: 8px; background: #5b4bff; color: #fff; margin-top: 16px; }
@@ -136,23 +137,25 @@ const BASE_STYLE = `
 app.use(express.urlencoded({ extended: true }));
 app.use("/images", express.static(path.join(__dirname, "public", "images")));
 
+function reasonsBlock(fieldName) {
+  return REASONS.map(
+    (r) => `<label class="check"><input type="checkbox" name="${fieldName}" value="${r.key}"> ${r.label}</label>`
+  ).join("");
+}
+
 app.get("/", (req, res) => {
   const [aId, bId] = pickPair();
   const a = ALL_IMAGES[aId];
   const b = ALL_IMAGES[bId];
 
-  const reasonsHtml = REASONS.map(
-    (r) => `<label class="check"><input type="checkbox" name="reasons" value="${r.key}"> ${r.label}</label>`
-  ).join("");
-
   res.send(`<!doctype html>
 <html lang="ja"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ポスターどっちが良い？アンケート</title>
+<title>フライヤーどっちが良い？アンケート</title>
 <style>${BASE_STYLE}</style>
 </head><body>
-<h1>🎁 ポスター、どっちが良い？</h1>
+<h1>🎁 フライヤー、どっちが良い？</h1>
 <p>2枚のフライヤー案を見て、直感で答えてください。1分で終わります。</p>
 <div class="images">
   <div class="option"><span class="tag">A</span><img src="/images/${a.file}" alt="A"></div>
@@ -163,45 +166,66 @@ app.get("/", (req, res) => {
   <input type="hidden" name="imageB" value="${b.id}">
 
   <fieldset>
-    <legend>① もらったら嬉しいのはどっち？</legend>
+    <legend>① どちらのチラシのほうが「もらったら嬉しい」と思いますか？</legend>
     <label class="choice"><input type="radio" name="giftWinner" value="A" required> A</label>
     <label class="choice"><input type="radio" name="giftWinner" value="B"> B</label>
+    <p class="sub">そう思う理由は？（複数選択可・任意）</p>
+    ${reasonsBlock("reasonsGift")}
+    <input type="text" name="otherReasonGift" placeholder="その他（自由記述・任意）">
   </fieldset>
 
   <fieldset>
-    <legend>② 写真を撮ってSNSに載せたいのはどっち？</legend>
+    <legend>② どちらのチラシのほうが「写真を撮ってSNSに載せたい」と思いますか？</legend>
     <label class="choice"><input type="radio" name="shareWinner" value="A" required> A</label>
     <label class="choice"><input type="radio" name="shareWinner" value="B"> B</label>
-  </fieldset>
-
-  <fieldset>
-    <legend>③ 選んだ理由（複数選択可・任意）</legend>
-    ${reasonsHtml}
-    <input type="text" name="otherReason" placeholder="その他（自由記述・任意）">
+    <p class="sub">そう思う理由は？（複数選択可・任意）</p>
+    ${reasonsBlock("reasonsShare")}
+    <input type="text" name="otherReasonShare" placeholder="その他（自由記述・任意）">
   </fieldset>
 
   <fieldset class="muted">
-    <legend>参考：食品ギフトを贈った/もらった経験は？（任意・初回だけでOK）</legend>
-    <label class="choice"><input type="radio" name="experience" value="often"> よくある</label>
-    <label class="choice"><input type="radio" name="experience" value="sometimes"> たまにある</label>
-    <label class="choice"><input type="radio" name="experience" value="rarely"> ほとんどない</label>
+    <legend>参考：ふだん、食品ギフトを贈ることは？（任意）</legend>
+    <label class="choice"><input type="radio" name="experienceGiving" value="often"> よくある</label>
+    <label class="choice"><input type="radio" name="experienceGiving" value="sometimes"> たまにある</label>
+    <label class="choice"><input type="radio" name="experienceGiving" value="rarely"> ほとんどない</label>
   </fieldset>
 
-  <textarea name="comment" rows="2" placeholder="気になった点・コメント（任意）"></textarea>
+  <fieldset class="muted">
+    <legend>参考：ふだん、食品ギフトをもらうことは？（任意）</legend>
+    <label class="choice"><input type="radio" name="experienceReceiving" value="often"> よくある</label>
+    <label class="choice"><input type="radio" name="experienceReceiving" value="sometimes"> たまにある</label>
+    <label class="choice"><input type="radio" name="experienceReceiving" value="rarely"> ほとんどない</label>
+  </fieldset>
+
+  <p class="sub">今回見た2案について、気になった点・コメント（任意）</p>
+  <textarea name="comment" rows="2" placeholder="例：文字が読みにくかった、価格が気になった、など"></textarea>
 
   <button type="submit">回答する</button>
 </form>
 </body></html>`);
 });
 
+function cleanReasons(v) {
+  let reasons = v || [];
+  if (!Array.isArray(reasons)) reasons = [reasons];
+  return reasons.filter((r) => REASONS.some((x) => x.key === r));
+}
+
 app.post("/vote", (req, res) => {
-  const { imageA, imageB, giftWinner, shareWinner, otherReason, experience, comment } = req.body;
+  const {
+    imageA,
+    imageB,
+    giftWinner,
+    shareWinner,
+    otherReasonGift,
+    otherReasonShare,
+    experienceGiving,
+    experienceReceiving,
+    comment,
+  } = req.body;
   if (!ALL_IMAGES[imageA] || !ALL_IMAGES[imageB] || !["A", "B"].includes(giftWinner) || !["A", "B"].includes(shareWinner)) {
     return res.status(400).send("不正なリクエストです");
   }
-  let reasons = req.body.reasons || [];
-  if (!Array.isArray(reasons)) reasons = [reasons];
-  reasons = reasons.filter((r) => REASONS.some((x) => x.key === r));
 
   appendVote({
     ts: new Date().toISOString(),
@@ -209,9 +233,12 @@ app.post("/vote", (req, res) => {
     imageB,
     giftWinnerId: giftWinner === "A" ? imageA : imageB,
     shareWinnerId: shareWinner === "A" ? imageA : imageB,
-    reasons,
-    otherReason: (otherReason || "").slice(0, 200),
-    experience: experience || null,
+    reasonsGift: cleanReasons(req.body.reasonsGift),
+    reasonsShare: cleanReasons(req.body.reasonsShare),
+    otherReasonGift: (otherReasonGift || "").slice(0, 200),
+    otherReasonShare: (otherReasonShare || "").slice(0, 200),
+    experienceGiving: experienceGiving || null,
+    experienceReceiving: experienceReceiving || null,
     comment: (comment || "").slice(0, 500),
   });
 
@@ -237,13 +264,18 @@ app.get("/results", (req, res) => {
 
   const tally = {};
   for (const id of Object.keys(ALL_IMAGES)) tally[id] = { giftWins: 0, shareWins: 0, shown: state.shown[id] || 0 };
-  const reasonTally = {};
-  for (const r of REASONS) reasonTally[r.key] = 0;
+  const reasonTallyGift = {};
+  const reasonTallyShare = {};
+  for (const r of REASONS) {
+    reasonTallyGift[r.key] = 0;
+    reasonTallyShare[r.key] = 0;
+  }
 
   for (const v of votes) {
     if (tally[v.giftWinnerId]) tally[v.giftWinnerId].giftWins++;
     if (tally[v.shareWinnerId]) tally[v.shareWinnerId].shareWins++;
-    for (const r of v.reasons || []) if (reasonTally[r] !== undefined) reasonTally[r]++;
+    for (const r of v.reasonsGift || []) if (reasonTallyGift[r] !== undefined) reasonTallyGift[r]++;
+    for (const r of v.reasonsShare || []) if (reasonTallyShare[r] !== undefined) reasonTallyShare[r]++;
   }
 
   const rows = Object.entries(ALL_IMAGES)
@@ -253,7 +285,8 @@ app.get("/results", (req, res) => {
     })
     .join("");
 
-  const reasonRows = REASONS.map((r) => `<tr><td>${escapeHtml(r.label)}</td><td>${reasonTally[r.key]}</td></tr>`).join("");
+  const reasonRows = (tallyObj) =>
+    REASONS.map((r) => `<tr><td>${escapeHtml(r.label)}</td><td>${tallyObj[r.key]}</td></tr>`).join("");
 
   res.send(`<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -263,8 +296,10 @@ app.get("/results", (req, res) => {
 <tr><th>商品</th><th>案</th><th>表示回数</th><th>もらって嬉しい 勝利数</th><th>SNS映え 勝利数</th></tr>
 ${rows}
 </table>
-<h2 style="margin-top:24px">選んだ理由の内訳</h2>
-<table><tr><th>理由</th><th>件数</th></tr>${reasonRows}</table>
+<h2 style="margin-top:24px">①「もらって嬉しい」を選んだ理由</h2>
+<table><tr><th>理由</th><th>件数</th></tr>${reasonRows(reasonTallyGift)}</table>
+<h2 style="margin-top:24px">②「SNS映え」を選んだ理由</h2>
+<table><tr><th>理由</th><th>件数</th></tr>${reasonRows(reasonTallyShare)}</table>
 <p style="margin-top:20px"><a href="/export.json?key=${escapeHtml(req.query.key)}">生データをエクスポート(JSON)</a></p>
 </body></html>`);
 });
