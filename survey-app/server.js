@@ -1,18 +1,43 @@
 const express = require("express");
-const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
+const { Pool } = require("pg");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const ADMIN_KEY = process.env.ADMIN_KEY || "letmein";
+const DATABASE_URL = process.env.DATABASE_URL;
 
-const DATA_DIR = path.join(__dirname, "data");
-const VOTES_FILE = path.join(DATA_DIR, "votes.ndjson");
-const STATE_FILE = path.join(DATA_DIR, "state.json");
-fs.mkdirSync(DATA_DIR, { recursive: true });
-if (!fs.existsSync(VOTES_FILE)) fs.writeFileSync(VOTES_FILE, "");
-if (!fs.existsSync(STATE_FILE)) fs.writeFileSync(STATE_FILE, JSON.stringify({ shown: {} }));
+// DATABASE_URLがあればPostgresに永続化（Render本番向け）。
+// なければメモリ上に保持するだけ（ローカル動作確認用・再起動で消える）。
+const pool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL, ssl: { rejectUnauthorized: false } }) : null;
+const memory = { votes: [], shown: {} };
+
+async function initDb() {
+  if (!pool) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS votes (
+      id SERIAL PRIMARY KEY,
+      ts TIMESTAMPTZ NOT NULL DEFAULT now(),
+      image_a TEXT NOT NULL,
+      image_b TEXT NOT NULL,
+      gift_winner_id TEXT NOT NULL,
+      share_winner_id TEXT NOT NULL,
+      reasons_gift TEXT[] NOT NULL DEFAULT '{}',
+      reasons_share TEXT[] NOT NULL DEFAULT '{}',
+      other_reason_gift TEXT DEFAULT '',
+      other_reason_share TEXT DEFAULT '',
+      experience_giving TEXT,
+      experience_receiving TEXT,
+      comment TEXT DEFAULT ''
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS shown_counts (
+      image_id TEXT PRIMARY KEY,
+      count INT NOT NULL DEFAULT 0
+    )
+  `);
+}
 
 // 商品ごとにグループ化（別商品同士は比較しない＝デザインの勝敗だけを見るため）
 const PRODUCTS = [
@@ -51,23 +76,71 @@ const REASONS = [
   { key: "casual", label: "カジュアルで親しみやすい" },
 ];
 
-function loadState() {
-  try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-  } catch {
-    return { shown: {} };
+async function getShownCounts() {
+  if (!pool) return { ...memory.shown };
+  const { rows } = await pool.query("SELECT image_id, count FROM shown_counts");
+  const map = {};
+  for (const r of rows) map[r.image_id] = r.count;
+  return map;
+}
+
+async function bumpShown(ids) {
+  if (!pool) {
+    for (const id of ids) memory.shown[id] = (memory.shown[id] || 0) + 1;
+    return;
+  }
+  for (const id of ids) {
+    await pool.query(
+      `INSERT INTO shown_counts (image_id, count) VALUES ($1, 1)
+       ON CONFLICT (image_id) DO UPDATE SET count = shown_counts.count + 1`,
+      [id]
+    );
   }
 }
-function saveState(state) {
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state));
+
+async function appendVote(record) {
+  if (!pool) {
+    memory.votes.push(record);
+    return;
+  }
+  await pool.query(
+    `INSERT INTO votes
+      (image_a, image_b, gift_winner_id, share_winner_id, reasons_gift, reasons_share,
+       other_reason_gift, other_reason_share, experience_giving, experience_receiving, comment)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [
+      record.imageA,
+      record.imageB,
+      record.giftWinnerId,
+      record.shareWinnerId,
+      record.reasonsGift,
+      record.reasonsShare,
+      record.otherReasonGift,
+      record.otherReasonShare,
+      record.experienceGiving,
+      record.experienceReceiving,
+      record.comment,
+    ]
+  );
 }
-function appendVote(record) {
-  fs.appendFileSync(VOTES_FILE, JSON.stringify(record) + "\n");
-}
-function loadVotes() {
-  const raw = fs.readFileSync(VOTES_FILE, "utf8").trim();
-  if (!raw) return [];
-  return raw.split("\n").map((l) => JSON.parse(l));
+
+async function loadVotes() {
+  if (!pool) return memory.votes;
+  const { rows } = await pool.query("SELECT * FROM votes ORDER BY id");
+  return rows.map((r) => ({
+    ts: r.ts,
+    imageA: r.image_a,
+    imageB: r.image_b,
+    giftWinnerId: r.gift_winner_id,
+    shareWinnerId: r.share_winner_id,
+    reasonsGift: r.reasons_gift || [],
+    reasonsShare: r.reasons_share || [],
+    otherReasonGift: r.other_reason_gift || "",
+    otherReasonShare: r.other_reason_share || "",
+    experienceGiving: r.experience_giving,
+    experienceReceiving: r.experience_receiving,
+    comment: r.comment || "",
+  }));
 }
 
 function weightedPick(ids, shown, exclude) {
@@ -81,8 +154,8 @@ function weightedPick(ids, shown, exclude) {
   return pool[pool.length - 1].id;
 }
 
-function pickPair() {
-  const state = loadState();
+async function pickPair() {
+  const shown = await getShownCounts();
   // 商品はペア数（総当たり数）に比例した確率で選ぶ
   const weighted = PRODUCTS.map((p) => ({ p, weight: (p.images.length * (p.images.length - 1)) / 2 }));
   const totalW = weighted.reduce((s, w) => s + w.weight, 0);
@@ -96,14 +169,11 @@ function pickPair() {
     }
   }
   const ids = product.images.map((i) => i.id);
-  const first = weightedPick(ids, state.shown, null);
-  const second = weightedPick(ids, state.shown, first);
+  const first = weightedPick(ids, shown, null);
+  const second = weightedPick(ids, shown, first);
   const pair = Math.random() < 0.5 ? [first, second] : [second, first];
 
-  state.shown[pair[0]] = (state.shown[pair[0]] || 0) + 1;
-  state.shown[pair[1]] = (state.shown[pair[1]] || 0) + 1;
-  saveState(state);
-
+  await bumpShown(pair);
   return pair;
 }
 
@@ -143,12 +213,13 @@ function reasonsBlock(fieldName) {
   ).join("");
 }
 
-app.get("/", (req, res) => {
-  const [aId, bId] = pickPair();
-  const a = ALL_IMAGES[aId];
-  const b = ALL_IMAGES[bId];
+app.get("/", async (req, res, next) => {
+  try {
+    const [aId, bId] = await pickPair();
+    const a = ALL_IMAGES[aId];
+    const b = ALL_IMAGES[bId];
 
-  res.send(`<!doctype html>
+    res.send(`<!doctype html>
 <html lang="ja"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -203,6 +274,9 @@ app.get("/", (req, res) => {
   <button type="submit">回答する</button>
 </form>
 </body></html>`);
+  } catch (err) {
+    next(err);
+  }
 });
 
 function cleanReasons(v) {
@@ -211,38 +285,38 @@ function cleanReasons(v) {
   return reasons.filter((r) => REASONS.some((x) => x.key === r));
 }
 
-app.post("/vote", (req, res) => {
-  const {
-    imageA,
-    imageB,
-    giftWinner,
-    shareWinner,
-    otherReasonGift,
-    otherReasonShare,
-    experienceGiving,
-    experienceReceiving,
-    comment,
-  } = req.body;
-  if (!ALL_IMAGES[imageA] || !ALL_IMAGES[imageB] || !["A", "B"].includes(giftWinner) || !["A", "B"].includes(shareWinner)) {
-    return res.status(400).send("不正なリクエストです");
-  }
+app.post("/vote", async (req, res, next) => {
+  try {
+    const {
+      imageA,
+      imageB,
+      giftWinner,
+      shareWinner,
+      otherReasonGift,
+      otherReasonShare,
+      experienceGiving,
+      experienceReceiving,
+      comment,
+    } = req.body;
+    if (!ALL_IMAGES[imageA] || !ALL_IMAGES[imageB] || !["A", "B"].includes(giftWinner) || !["A", "B"].includes(shareWinner)) {
+      return res.status(400).send("不正なリクエストです");
+    }
 
-  appendVote({
-    ts: new Date().toISOString(),
-    imageA,
-    imageB,
-    giftWinnerId: giftWinner === "A" ? imageA : imageB,
-    shareWinnerId: shareWinner === "A" ? imageA : imageB,
-    reasonsGift: cleanReasons(req.body.reasonsGift),
-    reasonsShare: cleanReasons(req.body.reasonsShare),
-    otherReasonGift: (otherReasonGift || "").slice(0, 200),
-    otherReasonShare: (otherReasonShare || "").slice(0, 200),
-    experienceGiving: experienceGiving || null,
-    experienceReceiving: experienceReceiving || null,
-    comment: (comment || "").slice(0, 500),
-  });
+    await appendVote({
+      imageA,
+      imageB,
+      giftWinnerId: giftWinner === "A" ? imageA : imageB,
+      shareWinnerId: shareWinner === "A" ? imageA : imageB,
+      reasonsGift: cleanReasons(req.body.reasonsGift),
+      reasonsShare: cleanReasons(req.body.reasonsShare),
+      otherReasonGift: (otherReasonGift || "").slice(0, 200),
+      otherReasonShare: (otherReasonShare || "").slice(0, 200),
+      experienceGiving: experienceGiving || null,
+      experienceReceiving: experienceReceiving || null,
+      comment: (comment || "").slice(0, 500),
+    });
 
-  res.send(`<!doctype html>
+    res.send(`<!doctype html>
 <html lang="ja"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -255,40 +329,44 @@ app.post("/vote", (req, res) => {
   <a class="button" href="/"><button type="button">もう一組やってみる</button></a>
 </div>
 </body></html>`);
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.get("/results", (req, res) => {
-  if (req.query.key !== ADMIN_KEY) return res.status(403).send("forbidden");
-  const votes = loadVotes();
-  const state = loadState();
+app.get("/results", async (req, res, next) => {
+  try {
+    if (req.query.key !== ADMIN_KEY) return res.status(403).send("forbidden");
+    const votes = await loadVotes();
+    const shown = await getShownCounts();
 
-  const tally = {};
-  for (const id of Object.keys(ALL_IMAGES)) tally[id] = { giftWins: 0, shareWins: 0, shown: state.shown[id] || 0 };
-  const reasonTallyGift = {};
-  const reasonTallyShare = {};
-  for (const r of REASONS) {
-    reasonTallyGift[r.key] = 0;
-    reasonTallyShare[r.key] = 0;
-  }
+    const tally = {};
+    for (const id of Object.keys(ALL_IMAGES)) tally[id] = { giftWins: 0, shareWins: 0, shown: shown[id] || 0 };
+    const reasonTallyGift = {};
+    const reasonTallyShare = {};
+    for (const r of REASONS) {
+      reasonTallyGift[r.key] = 0;
+      reasonTallyShare[r.key] = 0;
+    }
 
-  for (const v of votes) {
-    if (tally[v.giftWinnerId]) tally[v.giftWinnerId].giftWins++;
-    if (tally[v.shareWinnerId]) tally[v.shareWinnerId].shareWins++;
-    for (const r of v.reasonsGift || []) if (reasonTallyGift[r] !== undefined) reasonTallyGift[r]++;
-    for (const r of v.reasonsShare || []) if (reasonTallyShare[r] !== undefined) reasonTallyShare[r]++;
-  }
+    for (const v of votes) {
+      if (tally[v.giftWinnerId]) tally[v.giftWinnerId].giftWins++;
+      if (tally[v.shareWinnerId]) tally[v.shareWinnerId].shareWins++;
+      for (const r of v.reasonsGift || []) if (reasonTallyGift[r] !== undefined) reasonTallyGift[r]++;
+      for (const r of v.reasonsShare || []) if (reasonTallyShare[r] !== undefined) reasonTallyShare[r]++;
+    }
 
-  const rows = Object.entries(ALL_IMAGES)
-    .map(([id, img]) => {
-      const t = tally[id];
-      return `<tr><td>${escapeHtml(img.productName)}</td><td>${escapeHtml(img.label)}</td><td>${t.shown}</td><td>${t.giftWins}</td><td>${t.shareWins}</td></tr>`;
-    })
-    .join("");
+    const rows = Object.entries(ALL_IMAGES)
+      .map(([id, img]) => {
+        const t = tally[id];
+        return `<tr><td>${escapeHtml(img.productName)}</td><td>${escapeHtml(img.label)}</td><td>${t.shown}</td><td>${t.giftWins}</td><td>${t.shareWins}</td></tr>`;
+      })
+      .join("");
 
-  const reasonRows = (tallyObj) =>
-    REASONS.map((r) => `<tr><td>${escapeHtml(r.label)}</td><td>${tallyObj[r.key]}</td></tr>`).join("");
+    const reasonRows = (tallyObj) =>
+      REASONS.map((r) => `<tr><td>${escapeHtml(r.label)}</td><td>${tallyObj[r.key]}</td></tr>`).join("");
 
-  res.send(`<!doctype html>
+    res.send(`<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>集計結果</title><style>${BASE_STYLE}</style></head><body>
 <h1>集計結果（回答数: ${votes.length}）</h1>
@@ -302,11 +380,25 @@ ${rows}
 <table><tr><th>理由</th><th>件数</th></tr>${reasonRows(reasonTallyShare)}</table>
 <p style="margin-top:20px"><a href="/export.json?key=${escapeHtml(req.query.key)}">生データをエクスポート(JSON)</a></p>
 </body></html>`);
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.get("/export.json", (req, res) => {
-  if (req.query.key !== ADMIN_KEY) return res.status(403).send("forbidden");
-  res.json({ images: ALL_IMAGES, votes: loadVotes(), state: loadState() });
+app.get("/export.json", async (req, res, next) => {
+  try {
+    if (req.query.key !== ADMIN_KEY) return res.status(403).send("forbidden");
+    res.json({ images: ALL_IMAGES, votes: await loadVotes(), shown: await getShownCounts() });
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.listen(PORT, () => console.log(`poster-survey listening on :${PORT}`));
+initDb()
+  .then(() => {
+    app.listen(PORT, () => console.log(`poster-survey listening on :${PORT} (storage: ${pool ? "postgres" : "memory"})`));
+  })
+  .catch((err) => {
+    console.error("DB init failed", err);
+    process.exit(1);
+  });
