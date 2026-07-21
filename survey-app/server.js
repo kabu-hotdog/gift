@@ -100,6 +100,7 @@ async function bumpShown(ids) {
 
 async function appendVote(record) {
   if (!pool) {
+    record.id = memory.votes.length ? Math.max(...memory.votes.map((v) => v.id)) + 1 : 1;
     memory.votes.push(record);
     return;
   }
@@ -128,6 +129,7 @@ async function loadVotes() {
   if (!pool) return memory.votes;
   const { rows } = await pool.query("SELECT * FROM votes ORDER BY id");
   return rows.map((r) => ({
+    id: r.id,
     ts: r.ts,
     imageA: r.image_a,
     imageB: r.image_b,
@@ -141,6 +143,14 @@ async function loadVotes() {
     experienceReceiving: r.experience_receiving,
     comment: r.comment || "",
   }));
+}
+
+async function deleteVote(id) {
+  if (!pool) {
+    memory.votes = memory.votes.filter((v) => v.id !== id);
+    return;
+  }
+  await pool.query("DELETE FROM votes WHERE id = $1", [id]);
 }
 
 function weightedPick(ids, shown, exclude) {
@@ -389,6 +399,18 @@ app.get("/export.json", async (req, res, next) => {
   try {
     if (req.query.key !== ADMIN_KEY) return res.status(403).send("forbidden");
     res.json({ images: ALL_IMAGES, votes: await loadVotes(), shown: await getShownCounts() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get("/admin/delete-vote", async (req, res, next) => {
+  try {
+    if (req.query.key !== ADMIN_KEY) return res.status(403).send("forbidden");
+    const id = Number(req.query.id);
+    if (!Number.isInteger(id)) return res.status(400).send("idを指定してください（/export.jsonで確認できます）");
+    await deleteVote(id);
+    res.redirect(`/results?key=${encodeURIComponent(req.query.key)}`);
   } catch (err) {
     next(err);
   }
