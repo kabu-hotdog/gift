@@ -351,7 +351,15 @@ app.get("/results", async (req, res, next) => {
     const shown = await getShownCounts();
 
     const tally = {};
-    for (const id of Object.keys(ALL_IMAGES)) tally[id] = { giftWins: 0, shareWins: 0, shown: shown[id] || 0 };
+    for (const id of Object.keys(ALL_IMAGES)) {
+      tally[id] = { giftWins: 0, shareWins: 0, shown: shown[id] || 0 };
+      tally[id].reasonsGift = {};
+      tally[id].reasonsShare = {};
+      for (const r of REASONS) {
+        tally[id].reasonsGift[r.key] = 0;
+        tally[id].reasonsShare[r.key] = 0;
+      }
+    }
     const reasonTallyGift = {};
     const reasonTallyShare = {};
     for (const r of REASONS) {
@@ -362,8 +370,14 @@ app.get("/results", async (req, res, next) => {
     for (const v of votes) {
       if (tally[v.giftWinnerId]) tally[v.giftWinnerId].giftWins++;
       if (tally[v.shareWinnerId]) tally[v.shareWinnerId].shareWins++;
-      for (const r of v.reasonsGift || []) if (reasonTallyGift[r] !== undefined) reasonTallyGift[r]++;
-      for (const r of v.reasonsShare || []) if (reasonTallyShare[r] !== undefined) reasonTallyShare[r]++;
+      for (const r of v.reasonsGift || []) {
+        if (reasonTallyGift[r] !== undefined) reasonTallyGift[r]++;
+        if (tally[v.giftWinnerId] && tally[v.giftWinnerId].reasonsGift[r] !== undefined) tally[v.giftWinnerId].reasonsGift[r]++;
+      }
+      for (const r of v.reasonsShare || []) {
+        if (reasonTallyShare[r] !== undefined) reasonTallyShare[r]++;
+        if (tally[v.shareWinnerId] && tally[v.shareWinnerId].reasonsShare[r] !== undefined) tally[v.shareWinnerId].reasonsShare[r]++;
+      }
     }
 
     const rows = Object.entries(ALL_IMAGES)
@@ -376,6 +390,17 @@ app.get("/results", async (req, res, next) => {
     const reasonRows = (tallyObj) =>
       REASONS.map((r) => `<tr><td>${escapeHtml(r.label)}</td><td>${tallyObj[r.key]}</td></tr>`).join("");
 
+    const perPosterReasonBlock = Object.entries(ALL_IMAGES)
+      .map(([id, img]) => {
+        const t = tally[id];
+        return `<h3 style="margin-top:16px">${escapeHtml(img.productName)}｜${escapeHtml(img.label)}</h3>
+<table>
+<tr><th>理由</th><th>①もらって嬉しい</th><th>②SNS映え</th></tr>
+${REASONS.map((r) => `<tr><td>${escapeHtml(r.label)}</td><td>${t.reasonsGift[r.key]}</td><td>${t.reasonsShare[r.key]}</td></tr>`).join("")}
+</table>`;
+      })
+      .join("");
+
     res.send(`<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>集計結果</title><style>${BASE_STYLE}</style></head><body>
@@ -384,10 +409,12 @@ app.get("/results", async (req, res, next) => {
 <tr><th>商品</th><th>案</th><th>表示回数</th><th>もらって嬉しい 勝利数</th><th>SNS映え 勝利数</th></tr>
 ${rows}
 </table>
-<h2 style="margin-top:24px">①「もらって嬉しい」を選んだ理由</h2>
+<h2 style="margin-top:24px">①「もらって嬉しい」を選んだ理由（全体）</h2>
 <table><tr><th>理由</th><th>件数</th></tr>${reasonRows(reasonTallyGift)}</table>
-<h2 style="margin-top:24px">②「SNS映え」を選んだ理由</h2>
+<h2 style="margin-top:24px">②「SNS映え」を選んだ理由（全体）</h2>
 <table><tr><th>理由</th><th>件数</th></tr>${reasonRows(reasonTallyShare)}</table>
+<h2 style="margin-top:24px">案ごとの理由内訳</h2>
+${perPosterReasonBlock}
 <p style="margin-top:20px"><a href="/export.json?key=${escapeHtml(req.query.key)}">生データをエクスポート(JSON)</a></p>
 </body></html>`);
   } catch (err) {
